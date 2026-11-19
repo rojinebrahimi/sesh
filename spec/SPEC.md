@@ -128,5 +128,8 @@ Source formats are messier than the spec. These were all found by running adapte
   the line written before it. Treating each segment as a root reports all earlier history as "abandoned".
 * **Streaming snapshots can be persisted as calls** (Codex): the same `call_id` repeated with truncated arguments and
   a parse-failure output. Keep the first complete call and its first output.
+* **The leaf can be implicit** (Pi / omp): the current position is not stored, it is the last physical entry, and
+  entries such as `model_change`, `label` or `custom` are appended on the branch without being conversation. Treat
+  them as transparent when parenting turns, and emit a `head.move` if the leaf resolves earlier than the last turn.
 * **Sidechains** (sub-agent transcripts) are not part of the parent conversation.
 * **Opaque vendor state** (encrypted reasoning blobs) cannot travel; keep only readable summaries.

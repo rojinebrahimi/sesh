@@ -72,3 +72,24 @@ p("p2", "m2", 2001, {"type": "tool", "callID": "o1", "tool": "write", "state": {
 p("p3", "m2", 2002, {"type": "tool", "callID": "o2", "tool": "bash", "state": {"status": "completed", "input": {"command": "python -m pytest -q"}, "output": "3 passed"}})
 p("p4", "m2", 2003, {"type": "text", "text": "slugify implemented, 3 tests pass."})
 db.commit(); db.close()
+
+# ---------------- omp (oh-my-pi): header + tree entries, leaf = last entry ----------------
+pdir = os.path.join(root, "omp", "sessions", "--home-dev-notes-api--"); os.makedirs(pdir)
+pid = "019c625b-b900-7000-8000-00000000a001"
+def e(typ, i, parent, **kw): return json.dumps(dict(type=typ, id=i, parentId=parent, timestamp=ts(), **kw))
+def pm(i, parent, body): return e("message", i, parent, message=body)
+usage = {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0, "totalTokens": 0}
+P = [json.dumps({"type": "title", "title": "Paginate the notes endpoint"}),
+     json.dumps({"type": "session", "version": 3, "id": pid, "timestamp": "2026-03-02T12:00:00.000Z", "cwd": "/home/dev/notes-api"}),
+     pm("b1", None, {"role": "user", "content": "Paginate GET /notes with a cursor"}),
+     pm("b2", "b1", {"role": "assistant", "model": "claude-sonnet-4-5", "stopReason": "toolUse", "usage": usage, "content": [
+         {"type": "toolCall", "id": "k1", "name": "read", "arguments": {"path": "handlers/notes.go"}},
+         {"type": "toolCall", "id": "k2", "name": "grep", "arguments": {"pattern": "ListNotes"}}]}),
+     pm("b3", "b2", {"role": "toolResult", "toolCallId": "k1", "toolName": "read", "isError": False, "content": [{"type": "text", "text": "func ListNotes(...) {...}"}]}),
+     pm("b4", "b3", {"role": "toolResult", "toolCallId": "k2", "toolName": "grep", "isError": False, "content": [{"type": "text", "text": "handlers/notes.go:12"}]}),
+     e("model_change", "b5", "b4", provider="anthropic", modelId="claude-sonnet-4-5"),
+     pm("b6", "b5", {"role": "assistant", "model": "claude-sonnet-4-5", "stopReason": "toolUse", "usage": usage, "content": [
+         {"type": "toolCall", "id": "k3", "name": "edit", "arguments": {"path": "handlers/notes.go", "oldText": "LIMIT 100", "newText": "LIMIT ? OFFSET ?"}}]}),
+     pm("b7", "b6", {"role": "toolResult", "toolCallId": "k3", "toolName": "edit", "isError": False, "content": [{"type": "text", "text": "edited"}]}),
+     pm("b8", "b7", {"role": "assistant", "model": "claude-sonnet-4-5", "stopReason": "stop", "usage": usage, "content": [{"type": "text", "text": "Added cursor pagination; next step: document the new query params."}]})]
+open(os.path.join(pdir, f"2026-03-02T12-00-00-000Z_{pid}.jsonl"), "w").write("\n".join(P) + "\n")

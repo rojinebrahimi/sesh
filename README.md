@@ -2,9 +2,10 @@
 
 **Your coding-agent sessions, in one open format.**
 
-`sesh` reads sessions from **Claude Code**, **OpenAI Codex CLI** and **OpenCode**, converts them into the
-**Open Session Protocol (OSP)** - an append-only, branch-aware JSONL format - and lets you inspect, validate and
-export them. One static Go binary, no CGO, read-only on your agents' data.
+`sesh` reads sessions from **Claude Code**, **OpenAI Codex CLI**, **OpenCode** and **omp / pi**, converts them into
+the **Open Session Protocol (OSP)** - an append-only, branch-aware JSONL format - and lets you inspect, validate,
+checkpoint and **move them between agents**. It also runs as an MCP server so any agent can look up your past
+sessions. One static Go binary, no CGO. Reads never modify your agents' data; writes only ever add a new session.
 
 ![sesh demo](docs/demo.gif)
 
@@ -12,7 +13,7 @@ export them. One static Go binary, no CGO, read-only on your agents' data.
 
 Every agent CLI stores its history differently, and none of them can read another's. Switch tools mid-task and you
 start from zero. OSP is a small, documented format that all of them can be mapped onto, so a session can be
-inspected, checked, archived, and (in later phases) moved between agents without losing structure.
+inspected, checked, archived and moved between agents without losing structure.
 
 What makes OSP different from "dump the chat to JSON":
 
@@ -28,12 +29,20 @@ What makes OSP different from "dump the chat to JSON":
 |---|---|
 | OSP v0.1 spec + JSON Schema | done - [`spec/SPEC.md`](spec/SPEC.md) |
 | Core: reader/writer, active-branch resolver, validator | done |
-| Read adapters: Claude Code, Codex CLI, OpenCode | done |
-| `list`, `inspect`, `validate`, `convert --to osp` | done |
-| Write back into Claude Code / Codex (`convert --to claude\|codex`, `--open`) | planned (Phase 2) |
-| Checkpoint engine (LLM + deterministic), `sesh mcp` server | planned (Phase 3) |
+| Read adapters: Claude Code, Codex CLI, OpenCode, omp, pi | done |
+| `list` (with `--pick`), `inspect`, `validate`, `convert --to osp` | done |
+| Write-back: `convert --to claude\|codex\|opencode\|omp\|pi`, `--open`, `--handoff` | done |
+| Checkpoint engine (deterministic + pluggable summarizer), `sesh checkpoint` | done |
+| `sesh mcp` stdio server (list, inspect, read, checkpoint, search) | done |
 
-`convert` currently exports to OSP only. Nothing here writes into another agent's session store yet.
+How well each piece is verified (be skeptical of anything marked "format only"):
+
+| Agent | Read | Write-back |
+|---|---|---|
+| Claude Code | all of this machine's sessions validate | round-trips through sesh's own reader; **format only** - not launched in the real app |
+| Codex CLI | all of this machine's sessions validate | round-trips through sesh's own reader; **format only** |
+| OpenCode | all of this machine's sessions validate | imported sessions show up in the real `opencode session list` (on a copy of the database) |
+| omp / pi | **from the documented format** - omp isn't installed here, so no real sessions were tested | round-trips through sesh's own reader; **format only** |
 
 ## Install
 
@@ -60,6 +69,46 @@ sesh convert opencode:ses_36ee -o session.osp.jsonl
 sesh validate session.osp.jsonl        # OSP files are valid references everywhere
 ```
 
+### Move a session to another agent
+
+```sh
+sesh convert claude:7c1e --to codex             # writes a new Codex session, prints how to resume it
+sesh convert claude:7c1e --to opencode --open   # ...and launches the agent on it
+sesh convert $(sesh list --pick) --to omp       # choose from a numbered list
+sesh convert codex:01b2 --to claude --handoff   # cheap start: one message holding a checkpoint, not the history
+```
+
+What carries over: the **active branch** (abandoned branches stay in the OSP file), text, and tool calls. Tool calls
+are re-expressed with the target's own tools when the capability maps cleanly (`exec`, `fs.read`, `fs.write`, simple
+`fs.patch`, `search`, `mcp`); everything else - custom tools, multi-hunk patches, calls that never got a result -
+is kept as clearly labelled text, never as a fake tool call. Reasoning blocks are dropped (other agents cannot use
+them). sesh prints exactly how many calls went each way. It only ever **adds** a session and refuses to overwrite one.
+
+### Checkpoints
+
+```sh
+sesh checkpoint claude:7c1e                      # handoff note: goal, decisions, files touched, next steps
+sesh checkpoint claude:7c1e --json               # the session.checkpoint event
+sesh checkpoint session.osp.jsonl --write        # append it to the log (HEAD does not move)
+sesh checkpoint claude:7c1e --summarizer './summarize.sh'   # let any command (e.g. an LLM call) write the prose
+```
+
+The default tier is **deterministic**: no model is called, so it is free, instant and reproducible. It lists only
+files whose write or patch actually succeeded **on the active branch**, flags interrupted tool calls as next steps,
+and picks out decisions and TODO lines lexically - treat those two as hints, not judgement. A summarizer replaces the
+prose (tier `llm`); the file list always stays factual.
+
+### As an MCP server
+
+```sh
+claude mcp add sesh -- sesh mcp
+codex mcp add sesh -- sesh mcp
+```
+
+Read-only tools: `sesh_list`, `sesh_inspect`, `sesh_read`, `sesh_checkpoint`, `sesh_search`. This lets an agent that
+cannot import a session pull a checkpoint plus the last few turns instead. Returned transcripts are prefixed as
+recorded data, not instructions, because past conversations can contain anything.
+
 A *ref* is `agent:id-prefix`, a bare id prefix (if unique across agents), or a path to an `.osp.jsonl` file.
 
 Where sesh looks (override with the usual env vars):
@@ -68,7 +117,9 @@ Where sesh looks (override with the usual env vars):
 |---|---|---|
 | Claude Code | `~/.claude/projects/<cwd>/<uuid>.jsonl` | `CLAUDE_CONFIG_DIR` |
 | Codex CLI | `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl` | `CODEX_HOME` |
-| OpenCode | `~/.local/share/opencode/opencode.db` (opened read-only) | `XDG_DATA_HOME` |
+| OpenCode | `~/.local/share/opencode/opencode.db` (read-only to read; one insert transaction to write) | `XDG_DATA_HOME` |
+| omp | `~/.omp/agent/sessions/<cwd>/<ts>_<id>.jsonl` | `OMP_CODING_AGENT_DIR` |
+| pi | `~/.pi/agent/sessions/<cwd>/<ts>_<id>.jsonl` | `PI_CODING_AGENT_DIR` |
 
 An agent you don't have installed is silently skipped.
 
@@ -122,7 +173,10 @@ Run it on yours: `make verify`.
 ```
 spec/                  OSP spec + JSON Schema
 internal/osp/          events, JSONL IO, DAG resolver, validator, builder
-internal/adapters/     claude/  codex/  opencode/  toolmap/ (vendor tool -> capability)
+internal/adapters/     claude/  codex/  opencode/  pi/ (omp + pi)  toolmap/ (vendor tool -> capability)
+internal/export/       writers: OSP -> claude / codex / opencode / omp / pi
+internal/checkpoint/   deterministic checkpoint, summarizer hook, handoff markdown
+internal/mcp/          minimal stdio MCP server
 cmd/                   cobra commands
 scripts/demo/          builds the demo GIFs from synthetic fixtures (make demo)
 ```
@@ -137,16 +191,15 @@ make demo      # regenerate docs/demo*.gif (pip install pillow)
 
 The demo is recorded from the real binary on made-up sessions, never from your data.
 
-## Roadmap
+## Limits worth knowing
 
-1. **Phase 2** - write adapters so `sesh convert --from codex --to claude` produces a session `claude --resume` loads;
-   interactive picker for `list`.
-2. **Phase 3** - checkpoint engine (LLM summary when an API key is present, deterministic extraction offline) and
-   `sesh mcp`, a stdio MCP server so closed agents can pull a checkpoint plus the last N turns.
-3. **Phase 4** - `--open` to launch the target agent, more adapters.
-
-Known gaps: Codex rollbacks and OpenCode reverts are not modelled yet; encrypted reasoning blobs cannot travel between
-vendors, so only readable reasoning summaries are kept.
+* Write-back for Claude Code, Codex and omp/pi targets follows the documented/observed formats but has **not been
+  launched in the real apps** - only OpenCode was checked against its real CLI. Report anything a vendor rejects.
+* Codex rollbacks and OpenCode reverts are not modelled when reading.
+* Encrypted reasoning blobs cannot travel between vendors, so reasoning is dropped on export.
+* OpenCode: quit the TUI before importing if you want to see the new session without restarting it. sesh never
+  touches Codex's state databases; Codex indexes rollout files itself.
+* The checkpoint's decision and next-step extraction is lexical. Use `--summarizer` when it matters.
 
 ## License
 

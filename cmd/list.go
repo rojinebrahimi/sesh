@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"bufio"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/rojinebrahimi/sesh/internal/adapters"
@@ -11,6 +13,7 @@ import (
 func newList() *cobra.Command {
 	var agent, cwd string
 	var limit int
+	var pick bool
 	c := &cobra.Command{
 		Use:   "list",
 		Short: "List sessions found on this machine (newest first)",
@@ -39,6 +42,10 @@ func newList() *cobra.Command {
 			}
 			n := 0
 			out := cmd.OutOrStdout()
+			var shown []adapters.Info
+			if pick {
+				out = cmd.ErrOrStderr() // keep stdout clean: it carries only the chosen ref
+			}
 			for _, i := range all {
 				if cwd != "" && !strings.Contains(i.CWD, cwd) {
 					continue
@@ -47,9 +54,9 @@ func newList() *cobra.Command {
 					break
 				}
 				n++
-				id := i.ID
-				if len(id) > 8 {
-					id = id[:8]
+				shown = append(shown, i)
+				if pick {
+					fmt.Fprintf(out, "%s ", sBold.Render(pad(fmt.Sprintf("%d)", n), 4)))
 				}
 				fmt.Fprintf(out, "%s  %s  %s  %s  %s\n",
 					sAcc.Render(pad(i.Agent, 8)),
@@ -60,12 +67,23 @@ func newList() *cobra.Command {
 			}
 			if n == 0 {
 				fmt.Fprintln(out, "no sessions found")
+				return nil
+			}
+			if pick {
+				fmt.Fprint(out, "pick a session number: ")
+				line, _ := bufio.NewReader(cmd.InOrStdin()).ReadString('\n')
+				k, err := strconv.Atoi(strings.TrimSpace(line))
+				if err != nil || k < 1 || k > len(shown) {
+					return fmt.Errorf("not a valid choice: %q", strings.TrimSpace(line))
+				}
+				fmt.Fprintf(cmd.OutOrStdout(), "%s:%s\n", shown[k-1].Agent, shown[k-1].ID)
 			}
 			return nil
 		},
 	}
 	c.Flags().StringVar(&agent, "agent", "", "only this agent: claude | codex | opencode | omp | pi")
 	c.Flags().StringVar(&cwd, "cwd", "", "only sessions whose working directory contains this text")
+	c.Flags().BoolVar(&pick, "pick", false, "choose a row by number and print its ref (e.g. for: sesh convert $(sesh list --pick) --to claude)")
 	c.Flags().IntVarP(&limit, "limit", "n", 20, "max rows (0 = all)")
 	return c
 }

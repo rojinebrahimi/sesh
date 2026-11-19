@@ -31,6 +31,7 @@ func sourceByName(name string) (adapters.Source, error) {
 
 // Loaded is a session ready for analysis.
 type Loaded struct {
+	File   string // set when the ref was an OSP file on disk
 	Label  string
 	Events []osp.Event
 	Report osp.ReadReport
@@ -47,7 +48,7 @@ func load(ref string) (*Loaded, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &Loaded{Label: ref, Events: evs, Report: rep}, nil
+		return &Loaded{File: ref, Label: ref, Events: evs, Report: rep}, nil
 	}
 	agent, prefix := "", ref
 	if a, p, ok := strings.Cut(ref, ":"); ok {

@@ -9,19 +9,23 @@ STEPS = [
     ("sesh list", ["list"]),
     ("sesh inspect claude:7c1e --tail 4 --abandoned 2", ["inspect", "claude:7c1e", "--tail", "4", "--abandoned", "2"]),
     ("sesh validate --all", ["validate", "--all"]),
-    ("sesh convert codex:01b2 -o demo.osp.jsonl", ["convert", "codex:01b2", "-o", "demo.osp.jsonl"]),
-    ("sesh validate demo.osp.jsonl", ["validate", "demo.osp.jsonl"]),
+    ("sesh convert claude:7c1e --to omp", ["convert", "claude:7c1e", "--to", "omp"]),
+    ("sesh checkpoint codex:01b2", ["checkpoint", "codex:01b2"]),
 ]
 BG, FG = (26, 27, 38), (192, 202, 245)
 ANSI = {30: (65, 72, 104), 31: (247, 118, 142), 32: (158, 206, 106), 33: (224, 175, 104), 34: (122, 162, 247),
         35: (187, 154, 247), 36: (125, 207, 255), 37: FG}
-env = dict(os.environ, CLAUDE_CONFIG_DIR=f"{FIX}/claude", CODEX_HOME=f"{FIX}/codex", XDG_DATA_HOME=f"{FIX}/data", CLICOLOR_FORCE="1")
+env = dict(os.environ, CLAUDE_CONFIG_DIR=f"{FIX}/claude", CODEX_HOME=f"{FIX}/codex", XDG_DATA_HOME=f"{FIX}/data", OMP_CODING_AGENT_DIR=f"{FIX}/omp", PI_CODING_AGENT_DIR=f"{FIX}/pi", HOME=f"{FIX}/home", CLICOLOR_FORCE="1")
 env.pop("NO_COLOR", None)
 work = tempfile.mkdtemp()
 
 def run(args):
     p = subprocess.run([BIN, *args], cwd=work, env=env, capture_output=True, text=True)
-    return (p.stdout + p.stderr).rstrip("\n")
+    out = (p.stdout + p.stderr).rstrip("\n")
+    # show the agents' default locations instead of the throwaway fixture directory
+    for real, shown in ((f"{FIX}/claude", "~/.claude"), (f"{FIX}/codex", "~/.codex"), (f"{FIX}/omp", "~/.omp/agent"), (f"{FIX}/data", "~/.local/share"), (f"{FIX}/pi", "~/.pi/agent")):
+        out = out.replace(real, shown)
+    return out
 
 SGR = re.compile(r"\x1b\[([0-9;]*)m")
 def parse(line):
