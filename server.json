@@ -1,0 +1,31 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.rojinebrahimi/sesh",
+  "title": "sesh",
+  "description": "Read-only access to your Claude Code, Codex, OpenCode, omp and pi sessions: list, inspect, search and checkpoint.",
+  "repository": { "url": "https://github.com/rojinebrahimi/sesh", "source": "github" },
+  "version": "0.1.0",
+  "packages": [
+    {
+      "registryType": "oci",
+      "identifier": "ghcr.io/rojinebrahimi/sesh:0.1.0",
+      "transport": { "type": "stdio" },
+      "runtimeArguments": [
+        {
+          "type": "named",
+          "name": "--mount",
+          "description": "Mount your Claude Code data directory (read-only)",
+          "value": "type=bind,src={claude_dir},dst=/data/claude,readonly",
+          "variables": { "claude_dir": { "description": "Host path, e.g. /Users/you/.claude", "format": "filepath" } }
+        },
+        {
+          "type": "named",
+          "name": "--mount",
+          "description": "Mount your Codex data directory (read-only)",
+          "value": "type=bind,src={codex_dir},dst=/data/codex,readonly",
+          "variables": { "codex_dir": { "description": "Host path, e.g. /Users/you/.codex", "format": "filepath" } }
+        }
+      ]
+    }
+  ]
+}

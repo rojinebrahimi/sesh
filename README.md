@@ -114,6 +114,10 @@ claude mcp add sesh -- sesh mcp
 codex mcp add sesh -- sesh mcp
 ```
 
+Also published to the [official MCP Registry](https://registry.modelcontextprotocol.io) as `io.github.rojinebrahimi/sesh`
+(a Docker image: `ghcr.io/rojinebrahimi/sesh`, which needs your session folders mounted read-only; the plain binary above
+is simpler). It runs on your machine and sends nothing out.
+
 Read-only tools: `sesh_list`, `sesh_inspect`, `sesh_read`, `sesh_checkpoint`, `sesh_search`. This lets an agent that
 cannot import a session pull a checkpoint plus the last few turns instead. Returned transcripts are prefixed as
 recorded data, not instructions, because past conversations can contain anything.
