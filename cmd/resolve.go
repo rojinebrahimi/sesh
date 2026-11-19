@@ -11,12 +11,13 @@ import (
 	"github.com/rojinebrahimi/sesh/internal/adapters/claude"
 	"github.com/rojinebrahimi/sesh/internal/adapters/codex"
 	"github.com/rojinebrahimi/sesh/internal/adapters/opencode"
+	"github.com/rojinebrahimi/sesh/internal/adapters/pi"
 	"github.com/rojinebrahimi/sesh/internal/osp"
 )
 
 // sources returns every adapter, in display order.
 func sources() []adapters.Source {
-	return []adapters.Source{claude.New(), codex.New(), opencode.New()}
+	return []adapters.Source{claude.New(), codex.New(), opencode.New(), pi.NewOMP(), pi.NewPi()}
 }
 
 func sourceByName(name string) (adapters.Source, error) {
@@ -25,7 +26,7 @@ func sourceByName(name string) (adapters.Source, error) {
 			return s, nil
 		}
 	}
-	return nil, fmt.Errorf("unknown agent %q (want claude, codex or opencode)", name)
+	return nil, fmt.Errorf("unknown agent %q (want claude, codex, opencode, omp or pi)", name)
 }
 
 // Loaded is a session ready for analysis.

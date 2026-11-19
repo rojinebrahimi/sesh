@@ -63,7 +63,7 @@ branch resolver behave on your real data.`,
 		},
 	}
 	c.Flags().BoolVar(&all, "all", false, "validate every discovered session")
-	c.Flags().StringVar(&agent, "agent", "", "with --all: restrict to claude | codex | opencode")
+	c.Flags().StringVar(&agent, "agent", "", "with --all: restrict to claude | codex | opencode | omp | pi")
 	c.Flags().BoolVarP(&verbose, "verbose", "v", false, "with --all: list every issue, not just failures")
 	return c
 }

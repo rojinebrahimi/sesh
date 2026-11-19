@@ -186,3 +186,40 @@ func OpenCode(callID, tool string, input json.RawMessage) osp.Part {
 	}
 	return custom(callID, tool, m, input)
 }
+
+// Pi maps a toolCall block from Pi / oh-my-pi (omp). Both share one session format
+// and a small built-in tool set (read, write, edit, bash, grep, find, ls).
+func Pi(callID, tool string, args json.RawMessage) osp.Part {
+	m := map[string]any{}
+	_ = json.Unmarshal(args, &m)
+	path := str(m, "path", "file_path", "filePath", "file")
+	switch tool {
+	case "bash":
+		return mk(callID, osp.CapExec, tool, map[string]any{"cmd": str(m, "command", "cmd")}, args, "")
+	case "read":
+		return mk(callID, osp.CapFSRead, tool, withRange(map[string]any{"path": path}, readRange(m, "offset", "limit")), args, "")
+	case "write":
+		return mk(callID, osp.CapFSWrite, tool, map[string]any{"path": path, "content": str(m, "content")}, args, "")
+	case "edit":
+		var d strings.Builder
+		if edits, ok := m["edits"].([]any); ok {
+			for _, e := range edits {
+				if em, ok := e.(map[string]any); ok {
+					d.WriteString(SimpleDiff(str(em, "oldText", "old_string", "oldString"), str(em, "newText", "new_string", "newString")))
+				}
+			}
+		}
+		if d.Len() == 0 {
+			d.WriteString(SimpleDiff(str(m, "oldText", "old_string", "oldString"), str(m, "newText", "new_string", "newString")))
+		}
+		return mk(callID, osp.CapFSPatch, tool, map[string]any{"path": path, "diff": d.String()}, args, "")
+	case "grep":
+		return mk(callID, osp.CapSearch, tool, map[string]any{"query": str(m, "pattern", "query"), "glob": str(m, "glob", "include"), "mode": "text"}, args, "")
+	case "find":
+		return mk(callID, osp.CapSearch, tool, map[string]any{"query": str(m, "pattern", "query", "glob"), "mode": "files"}, args, "")
+	}
+	if mm := claudeMCP.FindStringSubmatch(tool); mm != nil {
+		return mk(callID, osp.CapMCP, tool, map[string]any{"server": mm[1], "tool": mm[2], "args": m}, args, "")
+	}
+	return custom(callID, tool, m, args)
+}

@@ -41,18 +41,18 @@ def parse(line):
     return out
 
 def render_all(width_px):
-    fs = int(width_px / COLS / 0.6)
+    fs = max(10, int(width_px / COLS / 0.602))
     reg = ImageFont.truetype("/System/Library/Fonts/Menlo.ttc", fs, index=0)
     bld = ImageFont.truetype("/System/Library/Fonts/Menlo.ttc", fs, index=1)
     cw = int(reg.getlength("M")); lh = int(fs * 1.45)
-    pad, bar = 22, 38
+    pad, bar = fs, int(fs * 2.1)
     W, H = cw * COLS + pad * 2, lh * ROWS + pad * 2 + bar
     def frame(lines, cursor=True):
         im = Image.new("RGB", (W, H), BG); d = ImageDraw.Draw(im)
         d.rectangle([0, 0, W, bar], fill=(36, 40, 59))
         for i, col in enumerate([(255, 95, 86), (255, 189, 46), (39, 201, 63)]):
-            d.ellipse([pad + i * 24, 12, pad + i * 24 + 14, 26], fill=col)
-        d.text((W // 2, 19), "sesh - Open Session Protocol", font=reg, fill=(120, 130, 170), anchor="mm")
+            r0 = bar * 0.5 - fs * 0.3; d.ellipse([pad + i * fs * 1.5, r0, pad + i * fs * 1.5 + fs * 0.6, r0 + fs * 0.6], fill=col)
+        d.text((W // 2, bar // 2), "sesh - Open Session Protocol", font=reg, fill=(120, 130, 170), anchor="mm")
         for r, ln in enumerate(lines[-ROWS:]):
             y = bar + pad + r * lh
             for c, (ch, fg, b, dim) in enumerate(ln):
@@ -61,7 +61,7 @@ def render_all(width_px):
         if cursor and lines:
             r = min(len(lines), ROWS) - 1
             x = pad + len(lines[-1]) * cw
-            d.rectangle([x, bar + pad + r * lh + 3, x + cw - 2, bar + pad + r * lh + lh - 3], fill=(192, 202, 245))
+            d.rectangle([x, bar + pad + r * lh + 2, x + cw - 1, bar + pad + r * lh + lh - 2], fill=(192, 202, 245))
         return im
     frames = []  # (image, ms)
     def add(lines, ms, cursor=True): frames.append((frame(lines, cursor), ms))
@@ -83,25 +83,23 @@ def render_all(width_px):
             screen = []
     return frames
 
-def save(frames, path, colors, width):
-    # shared palette from sampled frames, no dithering, merge consecutive duplicates
-    step = max(1, len(frames) // 6)
-    sample = [f for f, _ in frames[::step]][:6]
+def save(frames, path, colors):
+    # one shared palette built from frames spread across the whole run; no dithering (crisp text),
+    # no resize (frames are rendered at their final pixel size), consecutive duplicates merged
+    step = max(1, len(frames) // 12)
+    sample = [f for f, _ in frames[::step]][:12]
     mont = Image.new("RGB", (sample[0].width, sample[0].height * len(sample)))
     for i, f in enumerate(sample): mont.paste(f, (0, i * f.height))
     pal = mont.quantize(colors=colors, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE)
     imgs, durs = [], []
     for f, ms in frames:
         q = f.quantize(palette=pal, dither=Image.Dither.NONE)
-        if imgs and list(q.getdata()) == list(imgs[-1].getdata()):
+        if imgs and q.tobytes() == imgs[-1].tobytes():
             durs[-1] += ms; continue
         imgs.append(q); durs.append(ms)
-    h = int(imgs[0].height * width / imgs[0].width)
-    imgs = [i.resize((width, h), Image.Resampling.LANCZOS) if i.width != width else i for i in imgs]
     imgs[0].save(path, save_all=True, append_images=imgs[1:], duration=durs, loop=0, optimize=True, disposal=1)
-    print(path, os.path.getsize(path) // 1024, "KiB", len(imgs), "frames")
+    print(path, imgs[0].width, "px", os.path.getsize(path) // 1024, "KiB", len(imgs), "frames")
 
 os.makedirs(OUT, exist_ok=True)
-fr = render_all(1200)
-save(fr, f"{OUT}/demo.gif", 64, 960)
-save(fr, f"{OUT}/demo-linkedin.gif", 128, 1200)
+save(render_all(1280), f"{OUT}/demo.gif", 256)
+save(render_all(1680), f"{OUT}/demo-linkedin.gif", 256)
