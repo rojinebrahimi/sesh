@@ -1,8 +1,13 @@
-<p align="center"><img src="docs/logo.svg" width="120" alt="sesh logo"></p>
+<p align="center"><img src="docs/banner.png" alt="sesh - your coding-agent sessions, in one open format" width="100%"></p>
 
-<h1 align="center">sesh</h1>
+<p align="center">
+  <a href="https://github.com/rojinebrahimi/sesh/releases"><img alt="release" src="https://img.shields.io/github/v/release/rojinebrahimi/sesh?color=22d3ee&label=release"></a>
+  <a href="LICENSE"><img alt="license" src="https://img.shields.io/badge/license-Apache--2.0-818cf8"></a>
+  <img alt="go" src="https://img.shields.io/badge/go-1.22%2B-34d399">
+  <img alt="platforms" src="https://img.shields.io/badge/platforms-linux%20%7C%20macOS%20%7C%20windows-64748b">
+</p>
 
-<p align="center"><b>Your coding-agent sessions, in one open format.</b></p>
+<p align="center"><a href="#install">Install</a> · <a href="#use">Use</a> · <a href="#move-a-session-to-another-agent">Move sessions</a> · <a href="#as-an-mcp-server">MCP</a> · <a href="spec/SPEC.md">Spec</a></p>
 
 `sesh` reads sessions from **Claude Code**, **OpenAI Codex CLI**, **OpenCode** and **omp / pi**, converts them into
 the **Open Session Protocol (OSP)** - an append-only, branch-aware JSONL format - and lets you inspect, validate,
@@ -184,6 +189,11 @@ internal/mcp/          minimal stdio MCP server
 cmd/                   cobra commands
 scripts/demo/          builds the demo GIFs from synthetic fixtures (make demo)
 ```
+
+## Releases
+
+Pushing code to `main` runs the tests, tags the next patch version and publishes the binaries
+(`.github/workflows/release.yml`). For a minor or major bump, run the workflow by hand from the Actions tab.
 
 ## Development
 
