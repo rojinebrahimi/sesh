@@ -215,6 +215,11 @@ The demo is recorded from the real binary on made-up sessions, never from your d
   touches Codex's state databases; Codex indexes rollout files itself.
 * The checkpoint's decision and next-step extraction is lexical. Use `--summarizer` when it matters.
 
+## Contributing
+
+Pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) first; every contributor signs the
+[CLA](CLA.md) once (a bot walks you through it on your first PR).
+
 ## License
 
 Apache-2.0, see [LICENSE](LICENSE).
