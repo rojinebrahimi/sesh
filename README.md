@@ -1,6 +1,8 @@
-# sesh
+<p align="center"><img src="docs/logo.svg" width="120" alt="sesh logo"></p>
 
-**Your coding-agent sessions, in one open format.**
+<h1 align="center">sesh</h1>
+
+<p align="center"><b>Your coding-agent sessions, in one open format.</b></p>
 
 `sesh` reads sessions from **Claude Code**, **OpenAI Codex CLI**, **OpenCode** and **omp / pi**, converts them into
 the **Open Session Protocol (OSP)** - an append-only, branch-aware JSONL format - and lets you inspect, validate,
@@ -45,6 +47,8 @@ How well each piece is verified (be skeptical of anything marked "format only"):
 | omp / pi | **from the documented format** - omp isn't installed here, so no real sessions were tested | round-trips through sesh's own reader; **format only** |
 
 ## Install
+
+Prebuilt binaries (Linux, macOS, Windows; amd64 and arm64) are on the [releases page](https://github.com/rojinebrahimi/sesh/releases). Or from source:
 
 ```sh
 go install github.com/rojinebrahimi/sesh@latest     # or: git clone ... && make build

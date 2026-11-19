@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="sesh logo">
+  <title>sesh</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1e2a44"/>
+      <stop offset="1" stop-color="#0d1322"/>
+    </linearGradient>
+    <linearGradient id="live" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#5eead4"/>
+      <stop offset="1" stop-color="#60a5fa"/>
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="56" fill="url(#bg)"/>
+  <!-- abandoned branch: kept on disk, dimmed -->
+  <path d="M96 128 C130 128 130 70 168 70" fill="none" stroke="#64748b" stroke-width="10" stroke-linecap="round" stroke-dasharray="2 16"/>
+  <circle cx="168" cy="70" r="14" fill="none" stroke="#64748b" stroke-width="8"/>
+  <!-- active branch -->
+  <path d="M48 128 H96 C130 128 130 186 168 186 H208" fill="none" stroke="url(#live)" stroke-width="12" stroke-linecap="round"/>
+  <circle cx="48" cy="128" r="14" fill="#5eead4"/>
+  <circle cx="96" cy="128" r="14" fill="#5eead4"/>
+  <circle cx="168" cy="186" r="14" fill="#7dd3fc"/>
+  <circle cx="208" cy="186" r="18" fill="#60a5fa"/>
+  <circle cx="208" cy="186" r="7" fill="#0d1322"/>
+</svg>
