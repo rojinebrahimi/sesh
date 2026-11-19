@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/rojinebrahimi/sesh/spec/osp-v0.1.schema.json",
+  "title": "Open Session Protocol v0.1 - one line of an .osp.jsonl file",
+  "type": "object",
+  "required": ["osp", "offset", "id", "parent_id", "type", "timestamp"],
+  "properties": {
+    "osp": { "const": "0.1.0" },
+    "offset": { "type": "integer", "minimum": 1 },
+    "id": { "type": "string", "minLength": 1 },
+    "parent_id": { "type": ["string", "null"] },
+    "type": { "enum": ["session.init", "turn.item", "head.move", "session.checkpoint"] },
+    "timestamp": { "type": "string", "format": "date-time" }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "type": { "const": "session.init" },
+        "parent_id": { "type": "null" },
+        "offset": { "const": 1 },
+        "workspace": {
+          "type": "object",
+          "required": ["root"],
+          "properties": {
+            "root": { "type": "string" },
+            "git_branch": { "type": "string" },
+            "git_commit": { "type": "string" }
+          }
+        },
+        "origin": {
+          "type": "object",
+          "required": ["agent"],
+          "properties": {
+            "agent": { "type": "string" },
+            "version": { "type": "string" },
+            "model": { "type": "string" }
+          }
+        },
+        "system_prompt": { "type": "string" }
+      },
+      "required": ["workspace", "origin"]
+    },
+    {
+      "properties": {
+        "type": { "const": "turn.item" },
+        "parent_id": { "type": "string" },
+        "role": { "enum": ["system", "user", "assistant", "tool"] },
+        "parts": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/part" } }
+      },
+      "required": ["role", "parts"]
+    },
+    {
+      "properties": {
+        "type": { "const": "head.move" },
+        "parent_id": { "type": "string", "description": "The event HEAD moves to (a turn.item, or session.init)." }
+      }
+    },
+    {
+      "properties": {
+        "type": { "const": "session.checkpoint" },
+        "parent_id": { "type": "string" },
+        "summary": { "type": "string" },
+        "decisions": { "type": "array", "items": { "type": "string" } },
+        "modified_files": { "type": "array", "items": { "type": "string" } },
+        "next_steps": { "type": "array", "items": { "type": "string" } },
+        "tier": { "enum": ["llm", "deterministic"] }
+      },
+      "required": ["summary"]
+    }
+  ],
+  "$defs": {
+    "capability": { "enum": ["exec", "fs.read", "fs.write", "fs.patch", "search", "mcp", "custom"] },
+    "part": {
+      "type": "object",
+      "required": ["type"],
+      "oneOf": [
+        {
+          "properties": { "type": { "const": "text" }, "text": { "type": "string" } },
+          "required": ["text"]
+        },
+        {
+          "properties": {
+            "type": { "const": "reasoning" },
+            "text": { "type": "string" },
+            "visibility": { "enum": ["ephemeral", "persistent"] }
+          },
+          "required": ["text"]
+        },
+        {
+          "properties": {
+            "type": { "const": "tool_call" },
+            "call_id": { "type": "string", "minLength": 1 },
+            "capability": { "$ref": "#/$defs/capability" },
+            "name": { "type": "string" },
+            "input": {},
+            "fallback_text": { "type": "string" },
+            "raw": {}
+          },
+          "required": ["call_id", "capability"],
+          "if": { "properties": { "capability": { "const": "custom" } } },
+          "then": { "required": ["fallback_text"] }
+        },
+        {
+          "properties": {
+            "type": { "const": "tool_result" },
+            "call_id": { "type": "string", "minLength": 1 },
+            "status": { "enum": ["ok", "error"] },
+            "output": { "type": "string" },
+            "artifacts": { "type": "array", "items": { "type": "string" } }
+          },
+          "required": ["call_id", "status"]
+        }
+      ]
+    }
+  }
+}
