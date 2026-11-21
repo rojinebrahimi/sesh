@@ -9,7 +9,7 @@
 
 <p align="center"><a href="#install">Install</a> · <a href="#use">Use</a> · <a href="#move-a-session-to-another-agent">Move sessions</a> · <a href="#as-an-mcp-server">MCP</a> · <a href="spec/SPEC.md">Spec</a></p>
 
-`sesh` reads sessions from **Claude Code**, **OpenAI Codex CLI**, **OpenCode** and **omp / pi**, converts them into
+`sesh` reads sessions from **Claude Code**, **OpenAI Codex CLI**, **OpenCode**, **omp / pi**, **Kimi Code CLI** and **ZCode**, converts them into
 the **Open Session Protocol (OSP)** - an append-only, branch-aware JSONL format - and lets you inspect, validate,
 checkpoint and **move them between agents**. It also runs as an MCP server so any agent can look up your past
 sessions. One static Go binary, no CGO. Reads never modify your agents' data; writes only ever add a new session.
@@ -36,9 +36,9 @@ What makes OSP different from "dump the chat to JSON":
 |---|---|
 | OSP v0.1 spec + JSON Schema | done - [`spec/SPEC.md`](spec/SPEC.md) |
 | Core: reader/writer, active-branch resolver, validator | done |
-| Read adapters: Claude Code, Codex CLI, OpenCode, omp, pi | done |
+| Read adapters: Claude Code, Codex CLI, OpenCode, omp, pi, Kimi Code CLI, ZCode | done |
 | `list` (with `--pick`), `inspect`, `validate`, `convert --to osp` | done |
-| Write-back: `convert --to claude\|codex\|opencode\|omp\|pi`, `--open`, `--handoff` | done |
+| Write-back: `convert --to claude\|codex\|opencode\|omp\|pi\|kimi\|zcode`, `--open`, `--handoff` | done |
 | Checkpoint engine (deterministic + pluggable summarizer), `sesh checkpoint` | done |
 | `sesh mcp` stdio server (list, inspect, read, checkpoint, search) | done |
 
@@ -49,6 +49,8 @@ How well each piece is verified (be skeptical of anything marked "format only"):
 | Claude Code | all of this machine's sessions validate | round-trips through sesh's own reader; **format only** - not launched in the real app |
 | Codex CLI | all of this machine's sessions validate | round-trips through sesh's own reader; **format only** |
 | OpenCode | all of this machine's sessions validate | imported sessions show up in the real `opencode session list` (on a copy of the database) |
+| Kimi Code CLI | the one real session on this machine validates | exported sessions load in Kimi 1.50's own session/context loader and the real `kimi --session <id>` restores them and starts a turn; **not run against a live model** (no provider logged in here) |
+| ZCode | the one real session here validates (no tool calls in it, so tool parts are from ZCode's documented schema) | ZCode's own runtime lists and resumes exported sessions (`app-server` `session/list` / `session/resume`); **not run against a live model**, desktop sidebar not checked |
 | omp / pi | **from the documented format** - omp isn't installed here, so no real sessions were tested | round-trips through sesh's own reader; **format only** |
 
 ## Install
@@ -84,6 +86,8 @@ sesh validate session.osp.jsonl        # OSP files are valid references everywhe
 sesh convert claude:7c1e --to codex             # writes a new Codex session, prints how to resume it
 sesh convert claude:7c1e --to opencode --open   # ...and launches the agent on it
 sesh convert $(sesh list --pick) --to omp       # choose from a numbered list
+sesh convert codex:01b2 --to kimi               # resume with: cd <project> && kimi --session <id>
+sesh convert claude:7c1e --to zcode             # quit ZCode first; resume with: zcode --resume <id>
 sesh convert codex:01b2 --to claude --handoff   # cheap start: one message holding a checkpoint, not the history
 ```
 
@@ -131,6 +135,8 @@ Where sesh looks (override with the usual env vars):
 | Claude Code | `~/.claude/projects/<cwd>/<uuid>.jsonl` | `CLAUDE_CONFIG_DIR` |
 | Codex CLI | `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl` | `CODEX_HOME` |
 | OpenCode | `~/.local/share/opencode/opencode.db` (read-only to read; one insert transaction to write) | `XDG_DATA_HOME` |
+| Kimi Code CLI | `~/.kimi/sessions/<md5(cwd)>/<uuid>/{context,wire}.jsonl` + `state.json`; the work dir is added to `~/.kimi/kimi.json` if missing | `KIMI_SHARE_DIR` |
+| ZCode | `~/.zcode/cli/db/db.sqlite` (read-only to read; one insert transaction to write, plus a best-effort row in the desktop sidebar index `~/.zcode/v2/tasks-index.sqlite`) | `ZCODE_DATA_BASE_DIR`, `ZCODE_SESSION_DB_PATH` |
 | omp | `~/.omp/agent/sessions/<cwd>/<ts>_<id>.jsonl` | `OMP_CODING_AGENT_DIR` |
 | pi | `~/.pi/agent/sessions/<cwd>/<ts>_<id>.jsonl` | `PI_CODING_AGENT_DIR` |
 
@@ -186,8 +192,8 @@ Run it on yours: `make verify`.
 ```
 spec/                  OSP spec + JSON Schema
 internal/osp/          events, JSONL IO, DAG resolver, validator, builder
-internal/adapters/     claude/  codex/  opencode/  pi/ (omp + pi)  toolmap/ (vendor tool -> capability)
-internal/export/       writers: OSP -> claude / codex / opencode / omp / pi
+internal/adapters/     claude/  codex/  kimi/  opencode/  pi/ (omp + pi)  zcode/  toolmap/ (vendor tool -> capability)
+internal/export/       writers: OSP -> claude / codex / opencode / omp / pi / kimi / zcode
 internal/checkpoint/   deterministic checkpoint, summarizer hook, handoff markdown
 internal/mcp/          minimal stdio MCP server
 cmd/                   cobra commands
@@ -212,7 +218,12 @@ The demo is recorded from the real binary on made-up sessions, never from your d
 ## Limits worth knowing
 
 * Write-back for Claude Code, Codex and omp/pi targets follows the documented/observed formats but has **not been
-  launched in the real apps** - only OpenCode was checked against its real CLI. Report anything a vendor rejects.
+  launched in the real apps** - OpenCode, Kimi and ZCode were checked against their real loaders/CLIs (see the table
+  above). Report anything a vendor rejects.
+* Kimi: the source agent's system prompt is not copied (Kimi adds its own), and MCP tool calls become text. ZCode:
+  MCP tool calls become text; exported turns record provider `sesh`, so pick a model when you continue the session.
+  ZCode has no `zcode` binary on PATH from the desktop install; run the bundled runtime
+  (`node /Applications/ZCode.app/Contents/Resources/glm/zcode.cjs --resume <id>`) or open the app.
 * Codex rollbacks and OpenCode reverts are not modelled when reading.
 * Encrypted reasoning blobs cannot travel between vendors, so reasoning is dropped on export.
 * OpenCode: quit the TUI before importing if you want to see the new session without restarting it. sesh never

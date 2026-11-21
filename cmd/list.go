@@ -81,7 +81,7 @@ func newList() *cobra.Command {
 			return nil
 		},
 	}
-	c.Flags().StringVar(&agent, "agent", "", "only this agent: claude | codex | opencode | omp | pi")
+	c.Flags().StringVar(&agent, "agent", "", "only this agent: claude | codex | opencode | omp | pi | kimi | zcode")
 	c.Flags().StringVar(&cwd, "cwd", "", "only sessions whose working directory contains this text")
 	c.Flags().BoolVar(&pick, "pick", false, "choose a row by number and print its ref (e.g. for: sesh convert $(sesh list --pick) --to claude)")
 	c.Flags().IntVarP(&limit, "limit", "n", 20, "max rows (0 = all)")

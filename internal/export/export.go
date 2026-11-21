@@ -38,7 +38,7 @@ type Target interface {
 
 // Targets lists every writer. Locations follow the same environment variables as the readers.
 func Targets() []Target {
-	return []Target{Claude{}, Codex{}, OpenCode{}, Pi{Agent: "omp"}, Pi{Agent: "pi"}}
+	return []Target{Claude{}, Codex{}, OpenCode{}, Pi{Agent: "omp"}, Pi{Agent: "pi"}, Kimi{}, ZCode{}}
 }
 
 // ByName finds a writer.
@@ -48,7 +48,7 @@ func ByName(name string) (Target, error) {
 			return t, nil
 		}
 	}
-	return nil, fmt.Errorf("unknown target %q (want claude, codex, opencode, omp or pi)", name)
+	return nil, fmt.Errorf("unknown target %q (want claude, codex, opencode, omp, pi, kimi or zcode)", name)
 }
 
 // msg is one conversational step after tool calls were resolved for a target.

@@ -25,10 +25,10 @@ func newConvert() *cobra.Command {
 	c := &cobra.Command{
 		Use:   "convert <ref>",
 		Short: "Convert a session to OSP, or into another agent's native format",
-		Long: `Converts a session from Claude Code, Codex CLI, OpenCode, omp or pi.
+		Long: `Converts a session from Claude Code, Codex CLI, OpenCode, omp, pi, Kimi Code CLI or ZCode.
 
   --to osp (default)                 write an OSP log (.osp.jsonl) to a file or stdout
-  --to claude|codex|opencode|omp|pi  write the session into that agent's own store so it can be resumed there
+  --to claude|codex|opencode|omp|pi|kimi|zcode  write the session into that agent's own store so it can be resumed there
 
 Only the active branch is carried over. Tool calls are re-expressed with the target's native tools when
 the capability maps cleanly; anything else is kept as clearly labelled text (never as a fake tool call).
@@ -55,7 +55,7 @@ instead of the full history: a cheap way to start a fresh agent with the context
 				return convertNative(cmd, l, to, handoff, summarizer, open)
 			}
 			if open || handoff {
-				return fmt.Errorf("--open and --handoff need a native target: --to claude|codex|opencode|omp|pi")
+				return fmt.Errorf("--open and --handoff need a native target: --to claude|codex|opencode|omp|pi|kimi|zcode")
 			}
 			if outPath == "" || outPath == "-" {
 				w := osp.NewWriter(cmd.OutOrStdout(), 0)
@@ -77,7 +77,7 @@ instead of the full history: a cheap way to start a fresh agent with the context
 			return nil
 		},
 	}
-	c.Flags().StringVar(&to, "to", "osp", "target: osp | claude | codex | opencode | omp | pi")
+	c.Flags().StringVar(&to, "to", "osp", "target: osp | claude | codex | opencode | omp | pi | kimi | zcode")
 	c.Flags().StringVarP(&outPath, "out", "o", "", "with --to osp: output file (default: stdout)")
 	c.Flags().BoolVar(&handoff, "handoff", false, "write a checkpoint handoff instead of the full history")
 	c.Flags().StringVar(&summarizer, "summarizer", "", "with --handoff: shell command that turns a transcript (stdin) into JSON {summary,decisions,next_steps}")

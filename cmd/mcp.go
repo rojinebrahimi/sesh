@@ -18,7 +18,7 @@ func newMCP() *cobra.Command {
 		Short: "Serve session history to MCP-compatible agents over stdio",
 		Long: `Starts a Model Context Protocol server (stdio) with read-only tools:
 
-  sesh_list         list sessions across Claude Code, Codex, OpenCode, omp and pi
+  sesh_list         list sessions across Claude Code, Codex, OpenCode, omp, pi, Kimi and ZCode
   sesh_inspect      stats and validation for one session
   sesh_read         the last turns of a session's active branch
   sesh_checkpoint   a handoff note: goal, decisions, files touched, next steps
@@ -50,7 +50,7 @@ func mcpServer() *mcp.Server {
 	refDesc := "session reference: agent:id-prefix (e.g. claude:7c1e), a unique id prefix, or an .osp.jsonl path"
 	return &mcp.Server{Name: "sesh", Version: Version, Tools: []mcp.Tool{
 		{Name: "sesh_list", Description: "List recent coding-agent sessions on this machine (newest first).",
-			Schema: obj(map[string]any{"agent": prop("string", "claude | codex | opencode | omp | pi"), "cwd": prop("string", "only sessions whose directory contains this text"), "limit": prop("integer", "max rows (default 20)")}),
+			Schema: obj(map[string]any{"agent": prop("string", "claude | codex | opencode | omp | pi | kimi | zcode"), "cwd": prop("string", "only sessions whose directory contains this text"), "limit": prop("integer", "max rows (default 20)")}),
 			Run:    toolList},
 		{Name: "sesh_inspect", Description: "Stats for one session: turns, abandoned branches, tool pairing, validation.",
 			Schema: obj(map[string]any{"ref": prop("string", refDesc)}, "ref"), Run: toolInspect},

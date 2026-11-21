@@ -223,3 +223,40 @@ func Pi(callID, tool string, args json.RawMessage) osp.Part {
 	}
 	return custom(callID, tool, m, args)
 }
+
+// Kimi maps a tool call from Kimi Code CLI (ReadFile, WriteFile, StrReplaceFile, Shell, Glob, Grep).
+func Kimi(callID, name string, input json.RawMessage) osp.Part {
+	m := map[string]any{}
+	_ = json.Unmarshal(input, &m)
+	switch name {
+	case "Shell":
+		return mk(callID, osp.CapExec, name, map[string]any{"cmd": str(m, "command")}, input, "")
+	case "ReadFile":
+		return mk(callID, osp.CapFSRead, name, withRange(map[string]any{"path": str(m, "path")}, readRange(m, "line_offset", "n_lines")), input, "")
+	case "WriteFile":
+		if mode := str(m, "mode"); mode != "" && mode != "overwrite" {
+			break // append is not a whole-file write
+		}
+		return mk(callID, osp.CapFSWrite, name, map[string]any{"path": str(m, "path"), "content": str(m, "content")}, input, "")
+	case "StrReplaceFile":
+		var edits []any
+		switch e := m["edit"].(type) {
+		case map[string]any:
+			edits = []any{e}
+		case []any:
+			edits = e
+		}
+		var d strings.Builder
+		for _, e := range edits {
+			if em, ok := e.(map[string]any); ok {
+				d.WriteString(SimpleDiff(str(em, "old"), str(em, "new")))
+			}
+		}
+		return mk(callID, osp.CapFSPatch, name, map[string]any{"path": str(m, "path"), "diff": d.String()}, input, "")
+	case "Grep":
+		return mk(callID, osp.CapSearch, name, map[string]any{"query": str(m, "pattern"), "glob": str(m, "glob"), "mode": "text"}, input, "")
+	case "Glob":
+		return mk(callID, osp.CapSearch, name, map[string]any{"query": str(m, "pattern"), "mode": "files"}, input, "")
+	}
+	return custom(callID, name, m, input)
+}

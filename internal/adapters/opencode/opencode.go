@@ -25,8 +25,27 @@ import (
 	"github.com/rojinebrahimi/sesh/internal/osp"
 )
 
-// Source implements adapters.Source for OpenCode.
-type Source struct{ DB string }
+// Source implements adapters.Source for OpenCode, and for any fork that keeps OpenCode's
+// session/message/part schema (ZCode does): Agent and Tool select the name and tool vocabulary.
+type Source struct {
+	DB    string
+	Agent string // defaults to "opencode"
+	Tool  func(callID, tool string, input json.RawMessage) osp.Part
+}
+
+func (s *Source) agent() string {
+	if s.Agent != "" {
+		return s.Agent
+	}
+	return "opencode"
+}
+
+func (s *Source) mapTool(callID, tool string, input json.RawMessage) osp.Part {
+	if s.Tool != nil {
+		return s.Tool(callID, tool, input)
+	}
+	return toolmap.OpenCode(callID, tool, input)
+}
 
 // New returns a Source for $XDG_DATA_HOME/opencode/opencode.db (default ~/.local/share).
 func New() *Source {
@@ -38,7 +57,7 @@ func New() *Source {
 	return &Source{DB: filepath.Join(base, "opencode", "opencode.db")}
 }
 
-func (s *Source) Name() string { return "opencode" }
+func (s *Source) Name() string { return s.agent() }
 
 func (s *Source) open() (*sql.DB, error) {
 	if _, err := os.Stat(s.DB); err != nil {
@@ -70,7 +89,7 @@ func (s *Source) List() ([]adapters.Info, error) {
 		if err := rows.Scan(&i.ID, &i.CWD, &i.Title, &upd, &i.Turns); err != nil {
 			return nil, err
 		}
-		i.Agent, i.Path, i.Updated = "opencode", s.DB, time.UnixMilli(upd)
+		i.Agent, i.Path, i.Updated = s.agent(), s.DB, time.UnixMilli(upd)
 		i.Title = adapters.Truncate(i.Title, 80)
 		if i.Turns > 0 {
 			out = append(out, i)
@@ -116,7 +135,7 @@ func (s *Source) Load(id string) ([]osp.Event, error) {
 	var created int64
 	err = db.QueryRow(`SELECT directory, version, time_created FROM session WHERE id = ?`, id).Scan(&dir, &version, &created)
 	if err == sql.ErrNoRows {
-		return nil, fmt.Errorf("opencode: session %s not found", id)
+		return nil, fmt.Errorf("%s: session %s not found", s.agent(), id)
 	} else if err != nil {
 		return nil, err
 	}
@@ -179,7 +198,7 @@ func (s *Source) Load(id string) ([]osp.Event, error) {
 	sort.SliceStable(msgs, func(i, j int) bool { return msgs[i].created < msgs[j].created })
 
 	b := osp.NewBuilder()
-	prev := b.Init(osp.Workspace{Root: dir}, osp.Origin{Agent: "opencode", Version: version, Model: model}, "", time.UnixMilli(created))
+	prev := b.Init(osp.Workspace{Root: dir}, osp.Origin{Agent: s.agent(), Version: version, Model: model}, "", time.UnixMilli(created))
 	for _, m := range msgs {
 		ts := time.UnixMilli(m.created)
 		var parts, results []osp.Part
@@ -197,7 +216,7 @@ func (s *Source) Load(id string) ([]osp.Event, error) {
 				if m.role != "assistant" {
 					continue
 				}
-				parts = append(parts, toolmap.OpenCode(p.CallID, p.Tool, p.State.Input))
+				parts = append(parts, s.mapTool(p.CallID, p.Tool, p.State.Input))
 				switch p.State.Status {
 				case "completed":
 					results = append(results, osp.Part{Type: osp.PartToolResult, CallID: p.CallID, Status: "ok", Output: p.State.Output})

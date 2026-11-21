@@ -71,3 +71,33 @@ func TestCodexAndOpenCode(t *testing.T) {
 		t.Errorf("%+v", p)
 	}
 }
+
+func TestKimi(t *testing.T) {
+	cases := []struct {
+		name, args, capab string
+	}{
+		{"Shell", `{"command":"ls"}`, osp.CapExec},
+		{"ReadFile", `{"path":"a.go","line_offset":5,"n_lines":10}`, osp.CapFSRead},
+		{"WriteFile", `{"path":"a.go","content":"x"}`, osp.CapFSWrite},
+		{"WriteFile", `{"path":"a.go","content":"x","mode":"append"}`, osp.CapCustom},
+		{"StrReplaceFile", `{"path":"a.go","edit":{"old":"a","new":"b"}}`, osp.CapFSPatch},
+		{"StrReplaceFile", `{"path":"a.go","edit":[{"old":"a","new":"b"},{"old":"c","new":"d"}]}`, osp.CapFSPatch},
+		{"Grep", `{"pattern":"foo","glob":"*.go"}`, osp.CapSearch},
+		{"Glob", `{"pattern":"**/*.go"}`, osp.CapSearch},
+		{"SetTodoList", `{}`, osp.CapCustom},
+	}
+	for _, c := range cases {
+		p := Kimi("id", c.name, json.RawMessage(c.args))
+		if p.Capability != c.capab {
+			t.Errorf("%s %s: capability %s, want %s", c.name, c.args, p.Capability, c.capab)
+		}
+	}
+	p := Kimi("id", "ReadFile", json.RawMessage(`{"path":"a.go","line_offset":5,"n_lines":10}`))
+	if !strings.Contains(string(p.Input), `"range":[5,15]`) {
+		t.Errorf("range: %s", p.Input)
+	}
+	p = Kimi("id", "StrReplaceFile", json.RawMessage(`{"path":"a.go","edit":[{"old":"a","new":"b"},{"old":"c","new":"d"}]}`))
+	if !strings.Contains(string(p.Input), `-a\n+b\n-c\n+d`) {
+		t.Errorf("multi-edit diff: %s", p.Input)
+	}
+}

@@ -12,9 +12,11 @@ import (
 	"github.com/rojinebrahimi/sesh/internal/adapters"
 	"github.com/rojinebrahimi/sesh/internal/adapters/claude"
 	"github.com/rojinebrahimi/sesh/internal/adapters/codex"
+	"github.com/rojinebrahimi/sesh/internal/adapters/kimi"
 	"github.com/rojinebrahimi/sesh/internal/adapters/opencode"
 	"github.com/rojinebrahimi/sesh/internal/adapters/pi"
 	"github.com/rojinebrahimi/sesh/internal/adapters/toolmap"
+	"github.com/rojinebrahimi/sesh/internal/adapters/zcode"
 	"github.com/rojinebrahimi/sesh/internal/export"
 	"github.com/rojinebrahimi/sesh/internal/osp"
 )
@@ -23,7 +25,8 @@ import (
 func TestMain(m *testing.M) {
 	d, _ := os.MkdirTemp("", "sesh-export-test")
 	for k, v := range map[string]string{"HOME": d, "CLAUDE_CONFIG_DIR": d + "/claude", "CODEX_HOME": d + "/codex",
-		"XDG_DATA_HOME": d + "/data", "OMP_CODING_AGENT_DIR": d + "/omp", "PI_CODING_AGENT_DIR": d + "/pi"} {
+		"XDG_DATA_HOME": d + "/data", "OMP_CODING_AGENT_DIR": d + "/omp", "PI_CODING_AGENT_DIR": d + "/pi",
+		"KIMI_SHARE_DIR": d + "/kimi", "ZCODE_DATA_BASE_DIR": d + "/zcode"} {
 		os.Setenv(k, v)
 	}
 	code := m.Run()
@@ -87,6 +90,27 @@ func makeOpenCodeDB(t *testing.T, path string) {
 	}
 }
 
+func makeZCodeDB(t *testing.T, path string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	for _, q := range []string{
+		"CREATE TABLE session (id text primary key, project_id text not null, workspace_id text, parent_id text, slug text not null, directory text not null, path text, title text not null, version text not null, time_created integer not null, time_updated integer not null, title_source text not null default 'first_input')",
+		"CREATE TABLE message (id text primary key, session_id text not null, time_created integer not null, time_updated integer not null, data text not null)",
+		"CREATE TABLE part (id text primary key, message_id text not null, session_id text not null, time_created integer not null, time_updated integer not null, data text not null)",
+	} {
+		if _, err := db.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 func TestRoundTrip(t *testing.T) {
 	cases := []struct {
 		target            string
@@ -98,6 +122,8 @@ func TestRoundTrip(t *testing.T) {
 		{"opencode", func() adapters.Source { return opencode.New() }, 3, 1},
 		{"omp", func() adapters.Source { return pi.NewOMP() }, 3, 1},
 		{"pi", func() adapters.Source { return pi.NewPi() }, 3, 1},
+		{"kimi", func() adapters.Source { return kimi.New() }, 3, 1},
+		{"zcode", func() adapters.Source { return zcode.New() }, 3, 1},
 	}
 	for _, tc := range cases {
 		t.Run(tc.target, func(t *testing.T) {
@@ -107,6 +133,11 @@ func TestRoundTrip(t *testing.T) {
 			t.Setenv("XDG_DATA_HOME", filepath.Join(home, "data"))
 			t.Setenv("OMP_CODING_AGENT_DIR", filepath.Join(home, "omp"))
 			t.Setenv("PI_CODING_AGENT_DIR", filepath.Join(home, "pi"))
+			t.Setenv("KIMI_SHARE_DIR", filepath.Join(home, "kimi"))
+			t.Setenv("ZCODE_DATA_BASE_DIR", filepath.Join(home, "zcode"))
+			if tc.target == "zcode" {
+				makeZCodeDB(t, filepath.Join(home, "zcode", "cli", "db", "db.sqlite"))
+			}
 			if tc.target == "opencode" {
 				dir := filepath.Join(home, "data", "opencode")
 				if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -235,5 +266,77 @@ func TestNeverOverwritesAndRejectsEmpty(t *testing.T) {
 	}
 	if _, err := (export.OpenCode{}).Export(fixture()); err == nil || !strings.Contains(err.Error(), "not found") {
 		t.Fatalf("a missing opencode db must be an error, not created: %v", err)
+	}
+}
+
+func TestKimiLayoutAndWorkDirRegistration(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("KIMI_SHARE_DIR", home)
+	// an existing kimi.json with an unrelated entry and an unknown field must survive untouched
+	pre := `{"work_dirs":[{"path":"/other","kaos":"local","last_session_id":"keep-me"}],"future":true}`
+	if err := os.WriteFile(filepath.Join(home, "kimi.json"), []byte(pre), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	res, err := export.Kimi{}.Export(fixture())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Resume[0] != "kimi" || res.Resume[1] != "--session" || res.Resume[2] != res.ID {
+		t.Fatalf("resume %v", res.Resume)
+	}
+	// folder name is md5 of the work dir, exactly as Kimi computes it
+	if want := kimi.DirHash("/work/demo"); filepath.Base(filepath.Dir(res.Path)) != want {
+		t.Fatalf("dir %s want hash %s", res.Path, want)
+	}
+	ctx, _ := os.ReadFile(filepath.Join(res.Path, "context.jsonl"))
+	if strings.Contains(string(ctx), "_system_prompt") {
+		t.Fatal("the source agent's system prompt must not be written; Kimi adds its own")
+	}
+	for _, f := range []string{"wire.jsonl", "state.json"} {
+		if _, err := os.Stat(filepath.Join(res.Path, f)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var meta struct {
+		WorkDirs []struct {
+			Path string  `json:"path"`
+			Last *string `json:"last_session_id"`
+		} `json:"work_dirs"`
+		Future bool `json:"future"`
+	}
+	b, _ := os.ReadFile(filepath.Join(home, "kimi.json"))
+	if err := json.Unmarshal(b, &meta); err != nil || !meta.Future || len(meta.WorkDirs) != 2 ||
+		meta.WorkDirs[0].Last == nil || *meta.WorkDirs[0].Last != "keep-me" || meta.WorkDirs[1].Path != "/work/demo" {
+		t.Fatalf("kimi.json: %v %s", err, b)
+	}
+	// exporting again must not duplicate the work dir entry
+	if _, err := (export.Kimi{}).Export(fixture()); err != nil {
+		t.Fatal(err)
+	}
+	b, _ = os.ReadFile(filepath.Join(home, "kimi.json"))
+	if strings.Count(string(b), `"/work/demo"`) != 1 {
+		t.Fatalf("work dir registered twice: %s", b)
+	}
+}
+
+func TestKimiRefusesCorruptMetadata(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("KIMI_SHARE_DIR", home)
+	if err := os.WriteFile(filepath.Join(home, "kimi.json"), []byte("{not json"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := (export.Kimi{}).Export(fixture()); err == nil {
+		t.Fatal("must not overwrite a kimi.json it cannot parse")
+	}
+	if b, _ := os.ReadFile(filepath.Join(home, "kimi.json")); string(b) != "{not json" {
+		t.Fatalf("kimi.json was modified: %s", b)
+	}
+}
+
+func TestZCodeMissingDatabaseIsAnError(t *testing.T) {
+	t.Setenv("ZCODE_DATA_BASE_DIR", t.TempDir())
+	t.Setenv("ZCODE_SESSION_DB_PATH", "")
+	if _, err := (export.ZCode{}).Export(fixture()); err == nil || !strings.Contains(err.Error(), "not found") {
+		t.Fatalf("a missing zcode db must be an error, not created: %v", err)
 	}
 }

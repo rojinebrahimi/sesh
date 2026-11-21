@@ -63,7 +63,7 @@ branch resolver behave on your real data.`,
 		},
 	}
 	c.Flags().BoolVar(&all, "all", false, "validate every discovered session")
-	c.Flags().StringVar(&agent, "agent", "", "with --all: restrict to claude | codex | opencode | omp | pi")
+	c.Flags().StringVar(&agent, "agent", "", "with --all: restrict to claude | codex | opencode | omp | pi | kimi | zcode")
 	c.Flags().BoolVarP(&verbose, "verbose", "v", false, "with --all: list every issue, not just failures")
 	return c
 }
@@ -157,7 +157,7 @@ func validateAll(cmd *cobra.Command, agent string, verbose bool) error {
 	fmt.Fprintf(out, "\n%s %s %s %s %s %s %s\n", sBold.Render(pad("agent", 9)), sBold.Render(pad("sessions", 9)), sBold.Render(pad("pass", 6)),
 		sBold.Render(pad("fail", 6)), sBold.Render(pad("active turns", 13)), sBold.Render(pad("abandoned", 10)), sBold.Render("tool calls paired"))
 	failed := 0
-	for _, name := range []string{"claude", "codex", "opencode", "omp", "pi"} {
+	for _, name := range []string{"claude", "codex", "opencode", "omp", "pi", "kimi", "zcode"} {
 		a := per[name]
 		if a == nil {
 			continue

@@ -25,7 +25,7 @@ go vet ./...
 * Add or update tests. Adapter fixes need a test that fails without the fix.
 * **Tests must never touch your real agent data.** They use temp directories and isolated environment variables
   (see `TestMain` in `internal/export` and `env()` in `cmd`). Do not point a test at `~/.claude`, `~/.codex` or
-  the real OpenCode database.
+  the real OpenCode, Kimi (`~/.kimi`) or ZCode (`~/.zcode`) data.
 * Update the README or [spec](spec/SPEC.md) when behaviour changes. The OSP format is versioned; format changes
   need a spec update.
 * Commit messages: a short imperative summary line, then details if needed.
